@@ -6,5 +6,9 @@ SpeechRecognition==3.14.1
 sounddevice
 scipy
 streamlit-audiorecorder
+streamlit
+streamlit-audiorecorder
+numpy
 
+speechrecognition
 
