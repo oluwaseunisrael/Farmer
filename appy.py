@@ -22,6 +22,8 @@ if 'audio_data' not in st.session_state:
     st.session_state.audio_data = None
 if 'recording' not in st.session_state:
     st.session_state.recording = False
+if 'recording_start_time' not in st.session_state:
+    st.session_state.recording_start_time = None
 
 # Custom CSS for styling
 st.markdown(
@@ -31,6 +33,7 @@ st.markdown(
     .stButton button:hover { background-color: #45a049; }
     .stTextInput input { border-radius: 5px; padding: 10px; font-size: 16px; }
     .stTitle { font-size: 36px; font-weight: bold; color: #2E86C1; }
+    .stSubheader { font-size: 24px; color: #2E86C1; }
     .wave { width: 100%; height: 50px; background-image: url('https://upload.wikimedia.org/wikipedia/commons/a/a9/Wave_animated.gif'); background-repeat: no-repeat; background-size: cover; }
     </style>
     """,
@@ -44,12 +47,16 @@ if st.session_state.page == "Login":
     password = st.text_input('Password', type='password', placeholder="Enter your password")
 
     if st.button("Login"):
-        if authenticate_user(username, password):
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.session_state.page = "Home"
+        if not username or not password:
+            st.error("Please provide both username and password.")
         else:
-            st.error("Invalid username or password")
+            user = authenticate_user(username, password)
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.session_state.page = "Home"
+            else:
+                st.error("Invalid username or password")
 
     if st.button("Forgot Password?"):
         st.session_state.page = "Reset Password"
@@ -64,12 +71,14 @@ elif st.session_state.page == "Register":
     email = st.text_input('Email')
 
     if st.button("Register"):
-        if not check_user_exists(username):
+        if not username or not password or not email:
+            st.error("Please fill out all fields.")
+        elif check_user_exists(username):
+            st.error("Username already exists. Choose a different one.")
+        else:
             insert_user(username, password, email)
             st.success("User registered successfully! Please login.")
             st.session_state.page = "Login"
-        else:
-            st.error("Username already exists.")
 
 elif st.session_state.page == "Reset Password":
     st.markdown("<div class='stTitle'>Reset Password</div>", unsafe_allow_html=True)
@@ -77,28 +86,36 @@ elif st.session_state.page == "Reset Password":
     new_password = st.text_input('New Password', type='password')
 
     if st.button("Reset Password"):
-        reset_password(username, new_password)
-        st.success("Password reset successfully! Please login.")
-        st.session_state.page = "Login"
+        if not username or not new_password:
+            st.error("Please provide username and new password.")
+        else:
+            reset_password(username, new_password)
+            st.success("Password reset successfully! Please login.")
+            st.session_state.page = "Login"
 
+# Home Page - Voice Analysis
 elif st.session_state.page == "Home":
     st.markdown(f"<div class='stTitle'>Welcome, {st.session_state.username}!</div>", unsafe_allow_html=True)
-    
-    fs = 44100  # Sample rate
-    duration = 300  # 5 minutes
+    st.markdown("<div class='stSubheader'>Record your voice note for sentiment analysis</div>", unsafe_allow_html=True)
 
+    fs = 44100  # Sample rate
+    duration = 300  # 5 minutes in seconds
+
+    # Display buttons in three columns
     col1, col2, col3 = st.columns(3)
 
     with col1:
         if st.button("🎤 Start Recording") and not st.session_state.recording:
             st.session_state.recording = True
+            st.session_state.recording_start_time = st.session_state.get('recording_start_time', None)
             st.session_state.audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
             st.markdown('<div class="wave"></div>', unsafe_allow_html=True)
+            st.session_state.recording_start_time = st.session_state.get('recording_start_time', None)
 
     with col2:
         if st.session_state.recording:
             if st.button("⏹ Stop Recording"):
-                sd.stop()
+                sd.stop()  # Stop the recording immediately
                 st.session_state.recording = False
                 st.success("✅ Recording stopped!")
         else:
@@ -106,7 +123,7 @@ elif st.session_state.page == "Home":
 
     with col3:
         if st.session_state.audio_data is not None:
-            if st.button("📤 Analyze Audio"):
+            if st.button("📤 Submit for Analysis"):
                 filename = "recorded_audio.wav"
                 wav.write(filename, fs, st.session_state.audio_data)
 
@@ -117,28 +134,34 @@ elif st.session_state.page == "Home":
                 try:
                     comment = recognizer.recognize_google(audio_data)
                     st.write("🗣️ You said:", comment)
+
+                    # Analyze text
                     cleansed_text = clean_text(comment)
                     final_words = tokenize_and_filter(cleansed_text)
                     emotions = analyze_emotions(final_words)
                     sentiment = sentiment_analysis(cleansed_text)
 
+                    # Display Results
                     st.write(f"📊 Sentiment: {sentiment.capitalize()}")
                     st.pyplot(plot_emotions(emotions))
 
+                    # Save to DB
                     insert_comment(st.session_state.username, comment, sentiment, "Unknown", "Unknown", "Unknown", "Unknown")
-                    st.success("✅ Analysis complete!")
+                    st.success("✅ Voice note submitted successfully!")
+
                 except sr.UnknownValueError:
-                    st.error("❌ Could not understand the audio.")
+                    st.error("❌ Speech Recognition could not understand the audio.")
                 except sr.RequestError as e:
-                    st.error(f"❌ Could not request results: {e}")
+                    st.error(f"❌ Could not request results from Speech Recognition service: {e}")
+
                 os.remove(filename)
         else:
-            st.button("📤 Analyze Audio", disabled=True)
+            st.button("📤 Submit for Analysis", disabled=True)
 
 elif st.session_state.page == "About Us":
     st.markdown("<div class='stTitle'>About Us</div>", unsafe_allow_html=True)
-    st.write(""" 
+    st.write(\"\"\" 
     ### 🎤 Voice Sentiment Analysis
     This tool helps users assess their stress levels by analyzing voice input.
     Record a short message, and our AI will analyze the emotional content.
-    """)
+    \"\"\")
