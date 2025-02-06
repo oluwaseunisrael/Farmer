@@ -5,9 +5,10 @@ pandas==2.0.3
 SpeechRecognition==3.14.1
 sounddevice
 scipy
-streamlit-audiorecorder
+
 streamlit
-streamlit-audiorecorder
+
 numpy
 speechrecognition
+streamlit-audiorecorder
 
