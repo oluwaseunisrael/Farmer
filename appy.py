@@ -160,8 +160,8 @@ elif st.session_state.page == "Home":
 
 elif st.session_state.page == "About Us":
     st.markdown("<div class='stTitle'>About Us</div>", unsafe_allow_html=True)
-    st.write(\"\"\" 
+    st.write(""" 
     ### 🎤 Voice Sentiment Analysis
     This tool helps users assess their stress levels by analyzing voice input.
     Record a short message, and our AI will analyze the emotional content.
-    \"\"\")
+    """)
