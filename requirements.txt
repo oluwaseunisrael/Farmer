@@ -3,7 +3,5 @@ nltk==3.14.1
 matplotlib==3.8.0
 pandas==2.1.0
 SpeechRecognition==3.14.1
-pipwin==0.5.2
-
-
-https://farmer-aa.streamlit.app/
+sounddevice==0.4.6
+pyaudio==0.2.13
