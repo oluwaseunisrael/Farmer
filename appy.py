@@ -23,6 +23,8 @@ if 'audio_data' not in st.session_state:
     st.session_state.audio_data = None
 if 'recording' not in st.session_state:
     st.session_state.recording = False
+if 'recording_start_time' not in st.session_state:
+    st.session_state.recording_start_time = None
 
 # Custom CSS for styling
 st.markdown(
@@ -57,7 +59,9 @@ if st.session_state.logged_in:
             st.session_state.logged_in = False
             st.session_state.username = None
             st.session_state.page = "Login"
-            st.experimental_rerun()
+            st.session_state.recording = False
+            st.session_state.audio_data = None
+            st.session_state.recording_start_time = None
 
 # Authentication Pages
 if st.session_state.page == "Login":
@@ -74,17 +78,14 @@ if st.session_state.page == "Login":
                 st.session_state.logged_in = True
                 st.session_state.username = username
                 st.session_state.page = "Home"
-                st.experimental_rerun()
             else:
                 st.error("Invalid username or password")
 
     if st.button("Forgot Password?"):
         st.session_state.page = "Reset Password"
-        st.experimental_rerun()
 
     if st.button("Register"):
         st.session_state.page = "Register"
-        st.experimental_rerun()
 
 elif st.session_state.page == "Register":
     st.markdown("<div class='stTitle'>Register</div>", unsafe_allow_html=True)
@@ -101,7 +102,6 @@ elif st.session_state.page == "Register":
             insert_user(username, password, email)
             st.success("User registered successfully! Please login.")
             st.session_state.page = "Login"
-            st.experimental_rerun()
 
 elif st.session_state.page == "Reset Password":
     st.markdown("<div class='stTitle'>Reset Password</div>", unsafe_allow_html=True)
@@ -115,7 +115,6 @@ elif st.session_state.page == "Reset Password":
             reset_password(username, new_password)
             st.success("Password reset successfully! Please login.")
             st.session_state.page = "Login"
-            st.experimental_rerun()
 
 # Home Page - Voice Analysis
 elif st.session_state.page == "Home":
@@ -123,7 +122,7 @@ elif st.session_state.page == "Home":
     st.markdown("<div class='stSubheader'>Record your voice note for sentiment analysis</div>", unsafe_allow_html=True)
 
     fs = 44100  # Sample rate
-    duration = 5  # Seconds
+    duration = 300  # 5 minutes in seconds
 
     # Display buttons
     col1, col2, col3 = st.columns(3)
@@ -131,11 +130,10 @@ elif st.session_state.page == "Home":
     with col1:
         if st.button("🎤 Start Recording") and not st.session_state.recording:
             st.session_state.recording = True
+            st.session_state.recording_start_time = st.session_state.get('recording_start_time', None)
             st.session_state.audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
             st.markdown('<div class="wave"></div>', unsafe_allow_html=True)  # Display wave animation
-            sd.wait()
-            st.success("✅ Recording finished!")
-            st.session_state.recording = False
+            st.session_state.recording_start_time = st.session_state.get('recording_start_time', None)
 
     with col2:
         if st.session_state.recording:
