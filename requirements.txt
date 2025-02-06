@@ -9,6 +9,5 @@ streamlit-audiorecorder
 streamlit
 streamlit-audiorecorder
 numpy
-
 speechrecognition
 
