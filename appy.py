@@ -1,11 +1,19 @@
 import streamlit as st
-import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
 import speech_recognition as sr
 import os
+from io import BytesIO
 from analysis import clean_text, tokenize_and_filter, analyze_emotions, sentiment_analysis, plot_emotions
-from database import create_users_table, insert_user, authenticate_user, reset_password, check_user_exists, create_comments_table, insert_comment
+from database import (
+    create_users_table,
+    insert_user,
+    authenticate_user,
+    reset_password,
+    check_user_exists,
+    create_comments_table,
+    insert_comment,
+)
 
 # Create database tables
 create_users_table()
@@ -18,29 +26,41 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'username' not in st.session_state:
     st.session_state.username = None
-if 'audio_data' not in st.session_state:
-    st.session_state.audio_data = None
-if 'recording' not in st.session_state:
-    st.session_state.recording = False
-if 'recording_start_time' not in st.session_state:
-    st.session_state.recording_start_time = None
 
 # Custom CSS for styling
 st.markdown(
     """
     <style>
-    .stButton button { background-color: #4CAF50; color: white; border-radius: 5px; padding: 10px 20px; font-size: 16px; }
+    .stButton button { 
+        background-color: #4CAF50; 
+        color: white; 
+        border-radius: 5px; 
+        padding: 10px 20px; 
+        font-size: 16px; 
+    }
     .stButton button:hover { background-color: #45a049; }
-    .stTextInput input { border-radius: 5px; padding: 10px; font-size: 16px; }
-    .stTitle { font-size: 36px; font-weight: bold; color: #2E86C1; }
-    .stSubheader { font-size: 24px; color: #2E86C1; }
-    .wave { width: 100%; height: 50px; background-image: url('https://upload.wikimedia.org/wikipedia/commons/a/a9/Wave_animated.gif'); background-repeat: no-repeat; background-size: cover; }
+    .stTextInput input { 
+        border-radius: 5px; 
+        padding: 10px; 
+        font-size: 16px; 
+    }
+    .stTitle { 
+        font-size: 36px; 
+        font-weight: bold; 
+        color: #2E86C1; 
+    }
+    .stSubheader { 
+        font-size: 24px; 
+        color: #2E86C1; 
+    }
     </style>
     """,
     unsafe_allow_html=True
 )
 
+# ----------------------------
 # Authentication Pages
+# ----------------------------
 if st.session_state.page == "Login":
     st.markdown("<div class='stTitle'>Login</div>", unsafe_allow_html=True)
     username = st.text_input('Username', placeholder="Enter your username")
@@ -93,75 +113,65 @@ elif st.session_state.page == "Reset Password":
             st.success("Password reset successfully! Please login.")
             st.session_state.page = "Login"
 
-# Home Page - Voice Analysis
+# ----------------------------
+# Home Page – Voice Analysis
+# ----------------------------
 elif st.session_state.page == "Home":
     st.markdown(f"<div class='stTitle'>Welcome, {st.session_state.username}!</div>", unsafe_allow_html=True)
     st.markdown("<div class='stSubheader'>Record your voice note for sentiment analysis</div>", unsafe_allow_html=True)
 
-    fs = 44100  # Sample rate
-    duration = 300  # 5 minutes in seconds
+    # Instead of sounddevice (which causes PortAudio errors on Streamlit Cloud),
+    # we use the browser-based st_audiorecorder.
+    from streamlit_audiorecorder import st_audiorecorder
 
-    # Display buttons in three columns
-    col1, col2, col3 = st.columns(3)
+    audio_bytes = st_audiorecorder("Press to record your voice note")
+    
+    # Display the audio player if recording is available
+    if audio_bytes is not None:
+        st.audio(audio_bytes, format="audio/wav")
+    
+        if st.button("📤 Analyze Audio"):
+            filename = "recorded_audio.wav"
+            with open(filename, "wb") as f:
+                f.write(audio_bytes)
+            
+            recognizer = sr.Recognizer()
+            with sr.AudioFile(filename) as source:
+                audio_data = recognizer.record(source)
+            try:
+                comment = recognizer.recognize_google(audio_data)
+                st.write("🗣️ You said:", comment)
 
-    with col1:
-        if st.button("🎤 Start Recording") and not st.session_state.recording:
-            st.session_state.recording = True
-            st.session_state.recording_start_time = st.session_state.get('recording_start_time', None)
-            st.session_state.audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
-            st.markdown('<div class="wave"></div>', unsafe_allow_html=True)
-            st.session_state.recording_start_time = st.session_state.get('recording_start_time', None)
+                # Analyze the recognized text
+                cleansed_text = clean_text(comment)
+                final_words = tokenize_and_filter(cleansed_text)
+                emotions = analyze_emotions(final_words)
+                sentiment = sentiment_analysis(cleansed_text)
 
-    with col2:
-        if st.session_state.recording:
-            if st.button("⏹ Stop Recording"):
-                sd.stop()  # Stop the recording immediately
-                st.session_state.recording = False
-                st.success("✅ Recording stopped!")
-        else:
-            st.button("⏹ Stop Recording", disabled=True)
+                st.write(f"📊 Sentiment: {sentiment.capitalize()}")
+                st.pyplot(plot_emotions(emotions))
 
-    with col3:
-        if st.session_state.audio_data is not None:
-            if st.button("📤 Submit for Analysis"):
-                filename = "recorded_audio.wav"
-                wav.write(filename, fs, st.session_state.audio_data)
-
-                recognizer = sr.Recognizer()
-                with sr.AudioFile(filename) as source:
-                    audio_data = recognizer.record(source)
-
-                try:
-                    comment = recognizer.recognize_google(audio_data)
-                    st.write("🗣️ You said:", comment)
-
-                    # Analyze text
-                    cleansed_text = clean_text(comment)
-                    final_words = tokenize_and_filter(cleansed_text)
-                    emotions = analyze_emotions(final_words)
-                    sentiment = sentiment_analysis(cleansed_text)
-
-                    # Display Results
-                    st.write(f"📊 Sentiment: {sentiment.capitalize()}")
-                    st.pyplot(plot_emotions(emotions))
-
-                    # Save to DB
-                    insert_comment(st.session_state.username, comment, sentiment, "Unknown", "Unknown", "Unknown", "Unknown")
-                    st.success("✅ Voice note submitted successfully!")
-
-                except sr.UnknownValueError:
-                    st.error("❌ Speech Recognition could not understand the audio.")
-                except sr.RequestError as e:
-                    st.error(f"❌ Could not request results from Speech Recognition service: {e}")
-
-                os.remove(filename)
-        else:
-            st.button("📤 Submit for Analysis", disabled=True)
+                # Save the comment and analysis to the database
+                insert_comment(
+                    st.session_state.username,
+                    comment,
+                    sentiment,
+                    "Unknown",
+                    "Unknown",
+                    "Unknown",
+                    "Unknown"
+                )
+                st.success("✅ Voice note submitted successfully!")
+            except sr.UnknownValueError:
+                st.error("❌ Speech Recognition could not understand the audio.")
+            except sr.RequestError as e:
+                st.error(f"❌ Could not request results from Speech Recognition service: {e}")
+            os.remove(filename)
 
 elif st.session_state.page == "About Us":
     st.markdown("<div class='stTitle'>About Us</div>", unsafe_allow_html=True)
-    st.write(""" 
-    ### 🎤 Voice Sentiment Analysis
-    This tool helps users assess their stress levels by analyzing voice input.
-    Record a short message, and our AI will analyze the emotional content.
-    """)
+    st.write(
+        """### 🎤 Voice Sentiment Analysis
+This tool helps users assess their stress levels by analyzing voice input.
+Record a short message, and our AI will analyze the emotional content."""
+    )
