@@ -134,19 +134,13 @@ elif st.session_state.page == "Home":
             st.session_state.audio_frames.append(frame.to_ndarray())
         return frame
 
-webrtc_ctx = webrtc_streamer(
-    key="audio-recorder",
-    mode=WebRtcMode.SENDRECV,
-    media_stream_constraints={"video": False, "audio": True},
-    async_processing=True,
-)
+    webrtc_ctx = webrtc_streamer(
+        key="audio-recorder",
+        mode=WebRtcMode.SENDRECV,
+        audio_frame_callback=audio_frame_callback,
+        media_stream_constraints={"video": False, "audio": True},
+    )
 
-if webrtc_ctx.state.playing:
-    try:
-        # Handle normal processing here
-        pass
-    except Exception as e:
-        st.error(f"WebRTC Error: {str(e)}. Please refresh and try again.")
     # Start and Stop Recording Buttons
     col1, col2, col3 = st.columns(3)
 
