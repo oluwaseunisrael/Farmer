@@ -10,6 +10,10 @@ speechrecognition
 streamlit-webrtc
 aioice==0.7.6  
 aioice
+streamlit-webrtc
+av
+
+
 
 
 
