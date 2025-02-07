@@ -2,8 +2,10 @@ import streamlit as st
 import numpy as np
 import scipy.io.wavfile as wav
 import speech_recognition as sr
-import os
-from io import BytesIO
+import av
+import io
+import wave
+from streamlit_webrtc import webrtc_streamer, WebRtcMode
 from analysis import clean_text, tokenize_and_filter, analyze_emotions, sentiment_analysis, plot_emotions
 from database import (
     create_users_table,
@@ -120,53 +122,73 @@ elif st.session_state.page == "Home":
     st.markdown(f"<div class='stTitle'>Welcome, {st.session_state.username}!</div>", unsafe_allow_html=True)
     st.markdown("<div class='stSubheader'>Record your voice note for sentiment analysis</div>", unsafe_allow_html=True)
 
-    # Instead of sounddevice (which causes PortAudio errors on Streamlit Cloud),
-    # we use the browser-based st_audiorecorder.
-    from streamlit_audiorecorder import st_audiorecorder
+    # Real-time audio recording with WebRTC
+    def process_audio(frame: av.AudioFrame) -> np.ndarray:
+        audio = frame.to_ndarray()
+        return audio
 
-    audio_bytes = st_audiorecorder("Press to record your voice note")
-    
-    # Display the audio player if recording is available
-    if audio_bytes is not None:
-        st.audio(audio_bytes, format="audio/wav")
-    
-        if st.button("📤 Analyze Audio"):
-            filename = "recorded_audio.wav"
-            with open(filename, "wb") as f:
-                f.write(audio_bytes)
-            
-            recognizer = sr.Recognizer()
-            with sr.AudioFile(filename) as source:
-                audio_data = recognizer.record(source)
+    webrtc_ctx = webrtc_streamer(
+        key="speech-to-text",
+        mode=WebRtcMode.SENDRECV,
+        audio_receiver_size=1024,
+        media_stream_constraints={"video": False, "audio": True},
+    )
+
+    if webrtc_ctx.audio_receiver:
+        audio_frames = []
+        while True:
             try:
-                comment = recognizer.recognize_google(audio_data)
-                st.write("🗣️ You said:", comment)
+                frame = webrtc_ctx.audio_receiver.get_frame(timeout=1)
+                audio_frames.append(process_audio(frame))
+            except:
+                break
 
-                # Analyze the recognized text
-                cleansed_text = clean_text(comment)
-                final_words = tokenize_and_filter(cleansed_text)
-                emotions = analyze_emotions(final_words)
-                sentiment = sentiment_analysis(cleansed_text)
+        if len(audio_frames) > 0:
+            # Convert recorded audio frames to WAV format
+            audio_data = np.concatenate(audio_frames, axis=0)
+            sample_rate = 16000  # Default sample rate for WebRTC
+            audio_buffer = io.BytesIO()
+            with wave.open(audio_buffer, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                wf.writeframes(audio_data.tobytes())
+            audio_buffer.seek(0)
 
-                st.write(f"📊 Sentiment: {sentiment.capitalize()}")
-                st.pyplot(plot_emotions(emotions))
+            st.audio(audio_buffer, format="audio/wav")
 
-                # Save the comment and analysis to the database
-                insert_comment(
-                    st.session_state.username,
-                    comment,
-                    sentiment,
-                    "Unknown",
-                    "Unknown",
-                    "Unknown",
-                    "Unknown"
-                )
-                st.success("✅ Voice note submitted successfully!")
-            except sr.UnknownValueError:
-                st.error("❌ Speech Recognition could not understand the audio.")
-            except sr.RequestError as e:
-                st.error(f"❌ Could not request results from Speech Recognition service: {e}")
-            os.remove(filename)
+            if st.button("📤 Analyze Audio"):
+                recognizer = sr.Recognizer()
+                with sr.AudioFile(audio_buffer) as source:
+                    audio_data = recognizer.record(source)
+                try:
+                    comment = recognizer.recognize_google(audio_data)
+                    st.write("🗣️ You said:", comment)
+
+                    # Analyze the recognized text
+                    cleansed_text = clean_text(comment)
+                    final_words = tokenize_and_filter(cleansed_text)
+                    emotions = analyze_emotions(final_words)
+                    sentiment = sentiment_analysis(cleansed_text)
+
+                    st.write(f"📊 Sentiment: {sentiment.capitalize()}")
+                    st.pyplot(plot_emotions(emotions))
+
+                    # Save the comment and analysis to the database
+                    insert_comment(
+                        st.session_state.username,
+                        comment,
+                        sentiment,
+                        "Unknown",
+                        "Unknown",
+                        "Unknown",
+                        "Unknown"
+                    )
+                    st.success("✅ Voice note submitted successfully!")
+                except sr.UnknownValueError:
+                    st.error("❌ Speech Recognition could not understand the audio.")
+                except sr.RequestError as e:
+                    st.error(f"❌ Could not request results from Speech Recognition service: {e}")
 
 elif st.session_state.page == "About Us":
     st.markdown("<div class='stTitle'>About Us</div>", unsafe_allow_html=True)
