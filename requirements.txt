@@ -7,4 +7,4 @@ sounddevice
 scipy
 numpy
 speechrecognition
-streamlit-audiorecorder
+streamlit-webrtc
