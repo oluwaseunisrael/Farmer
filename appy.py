@@ -27,6 +27,8 @@ if 'audio_data' not in st.session_state:
     st.session_state.audio_data = None
 if 'recording' not in st.session_state:
     st.session_state.recording = False
+if 'audio_frames' not in st.session_state:
+    st.session_state.audio_frames = []
 
 # Custom CSS for styling
 st.markdown(
@@ -131,9 +133,6 @@ elif st.session_state.page == "Home":
         if st.session_state.recording:
             st.session_state.audio_frames.append(frame.to_ndarray())
         return frame
-
-    if 'audio_frames' not in st.session_state:
-        st.session_state.audio_frames = []
 
     webrtc_ctx = webrtc_streamer(
         key="audio-recorder",
