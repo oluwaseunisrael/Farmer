@@ -1,6 +1,4 @@
 import streamlit as st
-import sounddevice as sd
-import scipy.io.wavfile as wav
 import speech_recognition as sr
 import os
 
@@ -14,10 +12,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'username' not in st.session_state:
     st.session_state.username = None
-if 'audio_data' not in st.session_state:
-    st.session_state.audio_data = None
-if 'recording' not in st.session_state:
-    st.session_state.recording = False
 
 # Functions
 def authenticate_user(username, password):
@@ -35,14 +29,13 @@ def reset_password(username, new_password):
         return True
     return False
 
-def clean_text(text):
-    return text.lower()
-
-def analyze_emotions(words):
-    return {"happy": 0.5, "sad": 0.3, "neutral": 0.2}
-
 def sentiment_analysis(text):
-    return "positive"
+    if "happy" in text or "good" in text:
+        return "Positive"
+    elif "sad" in text or "bad" in text:
+        return "Negative"
+    else:
+        return "Neutral"
 
 # --- UI Components ---
 st.markdown(
@@ -140,37 +133,22 @@ elif st.session_state.page == "Forgot Password":
 # --- Home Page ---
 elif st.session_state.page == "Home":
     st.markdown(f"<div class='stTitle'>Welcome, {st.session_state.username}!</div>", unsafe_allow_html=True)
-    st.markdown("<div class='stSubheader'>Record your voice for sentiment analysis</div>", unsafe_allow_html=True)
+    st.markdown("<div class='stSubheader'>Upload an Audio File for Sentiment Analysis</div>", unsafe_allow_html=True)
 
-    fs = 44100
-    duration = 5
+    uploaded_file = st.file_uploader("📤 Upload an audio file", type=["wav", "mp3"])
 
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if st.button("🎤 Start Recording"):
-            st.session_state.recording = True
-            st.session_state.audio_data = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
-            sd.wait()
-            st.success("✅ Recording finished!")
-            st.session_state.recording = False
-
-    with col3:
-        if st.session_state.audio_data is not None:
-            if st.button("📤 Submit for Analysis"):
-                filename = "recorded_audio.wav"
-                wav.write(filename, fs, st.session_state.audio_data)
-                recognizer = sr.Recognizer()
-                with sr.AudioFile(filename) as source:
-                    audio_data = recognizer.record(source)
-                try:
-                    comment = recognizer.recognize_google(audio_data)
-                    st.write("🗣️ You said:", comment)
-                    sentiment = sentiment_analysis(comment)
-                    st.write(f"📊 Sentiment: {sentiment.capitalize()}")
-                    st.success("✅ Voice note submitted successfully!")
-                except sr.UnknownValueError:
-                    st.error("❌ Could not understand audio.")
-                except sr.RequestError as e:
-                    st.error(f"❌ Speech Recognition service error: {e}")
-                os.remove(filename)
+    if uploaded_file:
+        st.audio(uploaded_file, format="audio/wav")
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(uploaded_file) as source:
+            audio_data = recognizer.record(source)
+        try:
+            comment = recognizer.recognize_google(audio_data)
+            st.write("🗣️ You said:", comment)
+            sentiment = sentiment_analysis(comment)
+            st.write(f"📊 Sentiment: {sentiment}")
+            st.success("✅ Analysis complete!")
+        except sr.UnknownValueError:
+            st.error("❌ Could not understand audio.")
+        except sr.RequestError as e:
+            st.error(f"❌ Speech Recognition service error: {e}")
