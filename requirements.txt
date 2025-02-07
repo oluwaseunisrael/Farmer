@@ -12,6 +12,8 @@ aioice==0.7.6
 aioice
 streamlit-webrtc
 av
+aiortc
+libopus
 
 
 
