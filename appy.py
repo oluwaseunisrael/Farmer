@@ -1,3 +1,4 @@
+# ... (previous imports and setup code)
 import streamlit as st
 import numpy as np
 import scipy.io.wavfile as wav
@@ -54,6 +55,11 @@ st.markdown(
     .stSubheader { 
         font-size: 24px; 
         color: #2E86C1; 
+    }
+    .icon-button {
+        font-size: 24px;
+        margin: 5px;
+        cursor: pointer;
     }
     </style>
     """,
@@ -120,7 +126,24 @@ elif st.session_state.page == "Reset Password":
 # ----------------------------
 elif st.session_state.page == "Home":
     st.markdown(f"<div class='stTitle'>Welcome, {st.session_state.username}!</div>", unsafe_allow_html=True)
-    st.markdown("<div class='stSubheader'>Record your voice note for sentiment analysis</div>", unsafe_allow_html=True)
+    st.markdown("<div class='stSubheader'>Record your voice note for stress analysis</div>", unsafe_allow_html=True)
+
+    # Home and Logout Icons
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("🏠 Home"):
+            st.session_state.page = "Home"
+    with col2:
+        if st.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.session_state.page = "Login"
+            st.experimental_rerun()
+
+    # Star Rating System
+    st.markdown("### Rate your experience:")
+    star_rating = st.slider("⭐", 1, 5, 3)
+    st.write(f"You rated: {star_rating} stars")
 
     # Real-time audio recording with WebRTC
     def process_audio(frame: av.AudioFrame) -> np.ndarray:
@@ -157,7 +180,7 @@ elif st.session_state.page == "Home":
 
             st.audio(audio_buffer, format="audio/wav")
 
-            if st.button("📤 Analyze Audio"):
+            if st.button("📤 Submit for Analysis"):
                 recognizer = sr.Recognizer()
                 with sr.AudioFile(audio_buffer) as source:
                     audio_data = recognizer.record(source)
@@ -190,10 +213,17 @@ elif st.session_state.page == "Home":
                 except sr.RequestError as e:
                     st.error(f"❌ Could not request results from Speech Recognition service: {e}")
 
+    # Start and Stop Recording Buttons
+    if st.button("⏺️ Start Recording"):
+        st.write("Recording started...")
+
+    if st.button("⏹️ Stop Recording"):
+        st.write("Recording stopped.")
+
 elif st.session_state.page == "About Us":
     st.markdown("<div class='stTitle'>About Us</div>", unsafe_allow_html=True)
     st.write(
-        """### 🎤 Voice Sentiment Analysis
-This tool helps users assess their stress levels by analyzing voice input.
-Record a short message, and our AI will analyze the emotional content."""
+        """### 🌾 Farmer Stress Analysis
+This tool helps farmers assess their stress levels by analyzing voice input.
+Record a short message about your daily challenges, and our AI will analyze the emotional content to help you understand your stress levels."""
     )
